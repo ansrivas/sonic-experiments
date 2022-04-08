@@ -25,14 +25,13 @@
 
   </div>
 </div>
-<script src="{{ url_for('static', path='/js/typeahead.bundle.js')}}" type="text/javascript"></script>
+<script src="/static/js/typeahead.bundle.js" type="text/javascript"></script>
 
 
 <script>
 var bestPictures = new Bloodhound({
   datumTokenizer: Bloodhound.tokenizers.obj.whitespace('value'),
   queryTokenizer: Bloodhound.tokenizers.whitespace,
-  //prefetch: 'http://localhost:8080/search/1',
   remote: {
     url: 'http://localhost:8080/search/%QUERY',
     wildcard: '%QUERY',

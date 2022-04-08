@@ -1,44 +1,17 @@
 use actix_cors::Cors;
+use actix_files as fs;
 use actix_web::middleware::{Compress, Logger};
+use actix_web::{get, post, web, App, HttpServer, Responder};
 use actix_web::{http::StatusCode, Error as ActixErr, HttpResponse};
+use actix_web_static_files::ResourceFiles;
+use askama_actix::TemplateToResponse;
 use serde::{Deserialize, Serialize};
 use sonic_channel::*;
-use std::borrow::Borrow;
-use std::sync::Mutex;
 
-// fn main() -> result::Result<()> {
-//     let channel = SearchChannel::start("localhost:21491", "SecretPassword")?;
-//     let objects = channel.query("collection", "bucket", "recipe")?;
-//     let suggestions = channel.suggest("collection", "bucket", "recipe")?;
-//     dbg!(objects);
-//     dbg!(suggestions);
+mod assets;
+mod template;
 
-//     Ok(())
-// }
-
-// fn main() -> result::Result<()> {
-//     let channel = IngestChannel::start("localhost:21491", "SecretPassword")?;
-//     let pushed = channel.push("collection", "bucket", "object:1", "my best recipe")?;
-//     let pushed = channel.push("collection", "bucket", "object:1", "ankur")?;
-//     let pushed = channel.push("collection", "bucket", "object:1", "ana")?;
-//     let pushed = channel.push("collection", "bucket", "object:1", "mimi")?;
-//     let pushed = channel.push("collection", "bucket", "object:1", "vikki")?;
-//     // or
-//     // let pushed = channel.push_with_locale("collection", "bucket", "object:1", "Мой лучший рецепт", "rus")?;
-//     dbg!(pushed);
-
-//     Ok(())
-// }
-
-// fn main() -> result::Result<()> {
-//     let channel = ControlChannel::start("localhost:21491", "SecretPassword")?;
-//     let result = channel.consolidate()?;
-//     assert_eq!(result, true);
-
-//     Ok(())
-// }
-
-use actix_web::{get, post, web, App, HttpServer, Responder};
+include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 
 #[derive(Serialize, Deserialize)]
 struct Response {
@@ -46,9 +19,9 @@ struct Response {
 }
 
 struct Channels {
-    pub ingest: Mutex<IngestChannel>,
-    pub search: Mutex<SearchChannel>,
-    pub control: Mutex<ControlChannel>,
+    pub ingest: IngestChannel,
+    pub search: SearchChannel,
+    pub control: ControlChannel,
 }
 
 #[get("/search/{name}")]
@@ -58,8 +31,6 @@ async fn search(
 ) -> Result<HttpResponse, ActixErr> {
     let objects = channels
         .search
-        .lock()
-        .unwrap()
         .suggest("collection", "bucket", &name)
         .unwrap();
     let resp: Vec<Response> = objects.into_iter().map(|o| Response { value: o }).collect();
@@ -73,8 +44,6 @@ async fn ingest(
 ) -> Result<HttpResponse, ActixErr> {
     let published = channel
         .ingest
-        .lock()
-        .unwrap()
         .push("collection", "bucket", "object:1", &name)
         .unwrap();
 
@@ -86,26 +55,30 @@ async fn ingest(
 
 #[post("/consolidate")]
 async fn consolidate(channel: web::Data<Channels>) -> Result<HttpResponse, ActixErr> {
-    let consolidated = channel.control.lock().unwrap().consolidate().unwrap();
+    let consolidated = channel.control.consolidate().unwrap();
     let resp = serde_json::json!({
         "consolidated": consolidated,
     });
     Ok(HttpResponse::build(StatusCode::from_u16(200).unwrap()).json(&resp))
 }
 
+#[get("/")]
+async fn index() -> Result<HttpResponse, ActixErr> {
+    let resp = template::Search { name: "something" }.to_response();
+    Ok(resp)
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // let objects = channel.query("collection", "bucket", "recipe")?;
-    // let suggestions = channel.suggest("collection", "bucket", "recipe")?;
     HttpServer::new(move || {
         let search_channel = SearchChannel::start("localhost:21491", "SecretPassword").unwrap();
         let ingest_channel = IngestChannel::start("localhost:21491", "SecretPassword").unwrap();
         let control_channel = ControlChannel::start("localhost:21491", "SecretPassword").unwrap();
 
         let channels = Channels {
-            search: Mutex::new(search_channel),
-            ingest: Mutex::new(ingest_channel),
-            control: Mutex::new(control_channel),
+            search: search_channel,
+            ingest: ingest_channel,
+            control: control_channel,
         };
 
         let cors = Cors::default()
@@ -115,11 +88,19 @@ async fn main() -> std::io::Result<()> {
             .allow_any_header()
             .max_age(3600);
         App::new()
-            .app_data(web::Data::new(channels))
             .wrap(cors)
+            .wrap(Compress::default())
+            .app_data(web::Data::new(channels))
             .service(search)
             .service(ingest)
             .service(consolidate)
+            .service(index)
+            .service(ResourceFiles::new("/static", generate()))
+        // .service(
+        //     fs::Files::new("/static", ".")
+        //         .show_files_listing()
+        //         .use_last_modified(true),
+        // )
     })
     .bind(("127.0.0.1", 8080))?
     .run()
