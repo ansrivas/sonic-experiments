@@ -1,51 +1,92 @@
+mod app_state;
+mod assets;
+mod db;
+mod errors;
+mod template;
+mod utils;
+
+use crate::db::{run_migrations, Postgres, Product};
 use actix_cors::Cors;
-use actix_files as fs;
-use actix_web::middleware::{Compress, Logger};
-use actix_web::{get, post, web, App, HttpServer, Responder};
+use actix_web::middleware::Compress;
+use actix_web::{get, post, web, App, HttpServer};
 use actix_web::{http::StatusCode, Error as ActixErr, HttpResponse};
 use actix_web_static_files::ResourceFiles;
+use app_state::AppState;
 use askama_actix::TemplateToResponse;
+use errors::SonicErrors;
 use serde::{Deserialize, Serialize};
 use sonic_channel::*;
 
-mod assets;
-mod template;
-
 include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Response {
     value: String,
 }
 
-struct Channels {
-    pub ingest: IngestChannel,
-    pub search: SearchChannel,
-    pub control: ControlChannel,
+#[derive(Serialize, Deserialize)]
+struct Request {
+    text: String,
 }
 
 #[get("/search/{name}")]
 async fn search(
     name: web::Path<String>,
-    channels: web::Data<Channels>,
+    state: web::Data<AppState>,
 ) -> Result<HttpResponse, ActixErr> {
-    let objects = channels
+    println!("{}", &name);
+
+    state
         .search
-        .suggest("collection", "bucket", &name)
-        .unwrap();
-    let resp: Vec<Response> = objects.into_iter().map(|o| Response { value: o }).collect();
+        .ping()
+        .map_err(|source| SonicErrors::Sonic { source })?;
+
+    let words = name.split_ascii_whitespace();
+    let mut indices = vec![];
+    for word in words {
+        let objects = state
+            .search
+            .query_with_limit("collection", "bucket", &word, 10)
+            .map_err(|source| SonicErrors::Sonic { source })?;
+        indices.extend_from_slice(&objects);
+    }
+
+    let resp: Vec<Response> = Postgres::query_products(&state.pgpool, indices.clone())
+        .await?
+        .iter()
+        .map(|p| Response {
+            value: p.details.clone(),
+        })
+        .collect();
     Ok(HttpResponse::build(StatusCode::from_u16(200).unwrap()).json(&resp))
 }
 
-#[post("/ingest/{name}")]
+#[post("/ingest")]
 async fn ingest(
-    name: web::Path<String>,
-    channel: web::Data<Channels>,
+    text: web::Json<Request>,
+    state: web::Data<AppState>,
 ) -> Result<HttpResponse, ActixErr> {
-    let published = channel
+    state
         .ingest
-        .push("collection", "bucket", "object:1", &name)
-        .unwrap();
+        .ping()
+        .map_err(|source| SonicErrors::Sonic { source })?;
+
+    let obj = uuid::Uuid::new_v4();
+
+    Postgres::insert_product(
+        &state.pgpool,
+        &Product {
+            details: text.text.clone(),
+            object_id: obj,
+            ..Default::default()
+        },
+    )
+    .await?;
+
+    let published = state
+        .ingest
+        .push("collection", "bucket", &obj.to_string(), &text.text)
+        .map_err(|source| SonicErrors::Sonic { source })?;
 
     let resp = serde_json::json!({
         "status": published,
@@ -54,8 +95,13 @@ async fn ingest(
 }
 
 #[post("/consolidate")]
-async fn consolidate(channel: web::Data<Channels>) -> Result<HttpResponse, ActixErr> {
-    let consolidated = channel.control.consolidate().unwrap();
+async fn consolidate(state: web::Data<AppState>) -> Result<HttpResponse, ActixErr> {
+    state
+        .control
+        .ping()
+        .map_err(|source| SonicErrors::Sonic { source })?;
+
+    let consolidated = state.control.consolidate().unwrap();
     let resp = serde_json::json!({
         "consolidated": consolidated,
     });
@@ -64,21 +110,27 @@ async fn consolidate(channel: web::Data<Channels>) -> Result<HttpResponse, Actix
 
 #[get("/")]
 async fn index() -> Result<HttpResponse, ActixErr> {
-    let resp = template::Search { name: "something" }.to_response();
+    let resp = template::Search {}.to_response();
     Ok(resp)
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let pg_dsn = "postgres://testuser:testpassword@localhost/testdb";
+    let pgpool = Postgres::setup(pg_dsn, 4, "sonic").await.unwrap();
+
+    run_migrations(&pgpool).await.unwrap();
+
     HttpServer::new(move || {
         let search_channel = SearchChannel::start("localhost:21491", "SecretPassword").unwrap();
         let ingest_channel = IngestChannel::start("localhost:21491", "SecretPassword").unwrap();
         let control_channel = ControlChannel::start("localhost:21491", "SecretPassword").unwrap();
 
-        let channels = Channels {
+        let channels = AppState {
             search: search_channel,
             ingest: ingest_channel,
             control: control_channel,
+            pgpool: pgpool.clone(),
         };
 
         let cors = Cors::default()
@@ -96,11 +148,6 @@ async fn main() -> std::io::Result<()> {
             .service(consolidate)
             .service(index)
             .service(ResourceFiles::new("/static", generate()))
-        // .service(
-        //     fs::Files::new("/static", ".")
-        //         .show_files_listing()
-        //         .use_last_modified(true),
-        // )
     })
     .bind(("127.0.0.1", 8080))?
     .run()

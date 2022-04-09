@@ -1,0 +1,22 @@
+version: '3'
+
+services:
+  db:
+    image: postgres:13-alpine
+    container_name: postgres-sonic-c
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: testdb
+
+  sonic:
+    image: valeriansaliou/sonic:v1.3.2
+    container_name: sonic-c
+    ports:
+      - "21491:1491"
+    restart: always
+    volumes:
+      - "./config.cfg:/etc/sonic.cfg:rw"
+      - "./store:/var/lib/sonic/store/:rw"
