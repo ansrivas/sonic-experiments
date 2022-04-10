@@ -7,7 +7,7 @@ mod utils;
 
 use crate::db::{run_migrations, Postgres, Product};
 use actix_cors::Cors;
-use actix_web::middleware::Compress;
+use actix_web::middleware::{Compress, NormalizePath};
 use actix_web::{get, post, web, App, HttpServer};
 use actix_web::{http::StatusCode, Error as ActixErr, HttpResponse};
 use actix_web_static_files::ResourceFiles;
@@ -142,6 +142,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(cors)
             .wrap(Compress::default())
+            .wrap(NormalizePath::trim())
             .app_data(web::Data::new(channels))
             .service(search)
             .service(ingest)

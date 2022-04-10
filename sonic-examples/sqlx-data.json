@@ -1,0 +1,35 @@
+{
+  "db": "PostgreSQL",
+  "e7c3e054c7f6313257d057fba284c67891aaca4c68371715e961a7ec2db80723": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "details",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "object_id",
+          "ordinal": 2,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "UuidArray"
+        ]
+      }
+    },
+    "query": "SELECT \n                *\n            FROM product \n            WHERE object_id = ANY($1)"
+  }
+}
