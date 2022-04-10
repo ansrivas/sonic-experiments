@@ -1,10 +1,14 @@
 mod app_state;
 mod assets;
+mod channel;
 mod db;
 mod errors;
 mod template;
 mod utils;
 
+use itertools::Itertools;
+
+use crate::channel::Channel;
 use crate::db::{run_migrations, Postgres, Product};
 use actix_cors::Cors;
 use actix_web::middleware::{Compress, NormalizePath};
@@ -15,7 +19,7 @@ use app_state::AppState;
 use askama_actix::TemplateToResponse;
 use errors::SonicErrors;
 use serde::{Deserialize, Serialize};
-use sonic_channel::*;
+use std::collections::HashMap;
 
 include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 
@@ -34,30 +38,38 @@ async fn search(
     name: web::Path<String>,
     state: web::Data<AppState>,
 ) -> Result<HttpResponse, ActixErr> {
-    println!("{}", &name);
-
-    state
-        .search
+    let search = state.channel.search();
+    search
         .ping()
         .map_err(|source| SonicErrors::Sonic { source })?;
 
-    let words = name.split_ascii_whitespace();
     let mut indices = vec![];
-    for word in words {
-        let objects = state
-            .search
-            .query_with_limit("collection", "bucket", &word, 10)
+    for word in name.split_ascii_whitespace() {
+        let objects = search
+            .query_with_limit("collection", "bucket", word, 10)
             .map_err(|source| SonicErrors::Sonic { source })?;
         indices.extend_from_slice(&objects);
     }
 
-    let resp: Vec<Response> = Postgres::query_products(&state.pgpool, indices.clone())
-        .await?
+    let unique_indices: Vec<String> = indices.into_iter().unique().collect();
+
+    let products = Postgres::query_products(&state.pgpool, unique_indices.clone()).await?;
+    let cache: HashMap<uuid::Uuid, Product> =
+        products.into_iter().map(|p| (p.object_id, p)).collect();
+
+    let resp: Vec<Response> = unique_indices
+        .iter()
+        .map(|i| {
+            let u = uuid::Uuid::parse_str(i).unwrap();
+            cache.get(&u).unwrap()
+        })
+        .collect::<Vec<&Product>>()
         .iter()
         .map(|p| Response {
             value: p.details.clone(),
         })
         .collect();
+
     Ok(HttpResponse::build(StatusCode::from_u16(200).unwrap()).json(&resp))
 }
 
@@ -66,8 +78,9 @@ async fn ingest(
     text: web::Json<Request>,
     state: web::Data<AppState>,
 ) -> Result<HttpResponse, ActixErr> {
-    state
-        .ingest
+    let ingest = state.channel.ingest();
+
+    ingest
         .ping()
         .map_err(|source| SonicErrors::Sonic { source })?;
 
@@ -83,8 +96,7 @@ async fn ingest(
     )
     .await?;
 
-    let published = state
-        .ingest
+    let published = ingest
         .push("collection", "bucket", &obj.to_string(), &text.text)
         .map_err(|source| SonicErrors::Sonic { source })?;
 
@@ -96,12 +108,12 @@ async fn ingest(
 
 #[post("/consolidate")]
 async fn consolidate(state: web::Data<AppState>) -> Result<HttpResponse, ActixErr> {
-    state
-        .control
+    let control = state.channel.control();
+    control
         .ping()
         .map_err(|source| SonicErrors::Sonic { source })?;
 
-    let consolidated = state.control.consolidate().unwrap();
+    let consolidated = control.consolidate().unwrap();
     let resp = serde_json::json!({
         "consolidated": consolidated,
     });
@@ -122,14 +134,8 @@ async fn main() -> std::io::Result<()> {
     run_migrations(&pgpool).await.unwrap();
 
     HttpServer::new(move || {
-        let search_channel = SearchChannel::start("localhost:21491", "SecretPassword").unwrap();
-        let ingest_channel = IngestChannel::start("localhost:21491", "SecretPassword").unwrap();
-        let control_channel = ControlChannel::start("localhost:21491", "SecretPassword").unwrap();
-
         let channels = AppState {
-            search: search_channel,
-            ingest: ingest_channel,
-            control: control_channel,
+            channel: Channel::new("localhost:21491", "", "SecretPassword"),
             pgpool: pgpool.clone(),
         };
 

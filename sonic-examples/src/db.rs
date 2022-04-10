@@ -2,10 +2,8 @@ use crate::errors::SonicErrors;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::Executor;
-use sqlx::Row;
+use sqlx::FromRow;
 use sqlx::{self, Connection, PgPool};
-use sqlx::{postgres::PgArguments, Arguments};
-use sqlx::{FromRow, IntoArguments};
 
 /// Run database migrations, this can also be switched to a separate app
 pub async fn run_migrations(pool: &PgPool) -> Result<(), SonicErrors> {
@@ -13,7 +11,7 @@ pub async fn run_migrations(pool: &PgPool) -> Result<(), SonicErrors> {
     Ok(())
 }
 
-#[derive(Serialize, Deserialize, FromRow, Default)]
+#[derive(Serialize, Deserialize, Debug, FromRow, Default)]
 pub struct Product {
     pub id: i64,
     pub details: String,

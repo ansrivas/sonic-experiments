@@ -1,4 +1,4 @@
-use askama_actix::{Template, TemplateToResponse};
+use askama_actix::Template;
 
 #[derive(Template)]
 #[template(path = "search.html")]

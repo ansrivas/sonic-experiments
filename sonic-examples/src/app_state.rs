@@ -1,11 +1,9 @@
-use sonic_channel::*;
+use crate::channel::Channel;
 use sqlx::PgPool;
 
 /// AppState to share with the server instance.
 /// All your dependencies can be injected here.
 pub struct AppState {
     pub pgpool: PgPool,
-    pub ingest: IngestChannel,
-    pub search: SearchChannel,
-    pub control: ControlChannel,
+    pub channel: Channel,
 }

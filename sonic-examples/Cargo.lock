@@ -1473,6 +1473,7 @@ dependencies = [
  "actix-web-static-files",
  "askama",
  "askama_actix",
+ "itertools",
  "rand",
  "serde",
  "serde_json",
