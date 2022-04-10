@@ -39,9 +39,6 @@ async fn search(
     state: web::Data<AppState>,
 ) -> Result<HttpResponse, ActixErr> {
     let search = state.channel.search();
-    search
-        .ping()
-        .map_err(|source| SonicErrors::Sonic { source })?;
 
     let mut indices = vec![];
     for word in name.split_ascii_whitespace() {
@@ -80,12 +77,7 @@ async fn ingest(
 ) -> Result<HttpResponse, ActixErr> {
     let ingest = state.channel.ingest();
 
-    ingest
-        .ping()
-        .map_err(|source| SonicErrors::Sonic { source })?;
-
     let obj = uuid::Uuid::new_v4();
-
     Postgres::insert_product(
         &state.pgpool,
         &Product {
@@ -109,10 +101,6 @@ async fn ingest(
 #[post("/consolidate")]
 async fn consolidate(state: web::Data<AppState>) -> Result<HttpResponse, ActixErr> {
     let control = state.channel.control();
-    control
-        .ping()
-        .map_err(|source| SonicErrors::Sonic { source })?;
-
     let consolidated = control.consolidate().unwrap();
     let resp = serde_json::json!({
         "consolidated": consolidated,
