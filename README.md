@@ -1,1 +1,24 @@
-docker run -p 21491:1491 -v `pwd`/config.cfg:/etc/sonic.cfg -v `pwd`/store/:/var/lib/sonic/store/ valeriansaliou/sonic:v1.3.2
+
+- docker-compose up
+
+- export DATABASE_URL="postgres://testuser:testpassword@localhost/testdb"
+
+- cargo sqlx prepare
+
+- cargo run --release
+
+- In another terminal upload some data
+
+    ```
+    curl -XPOST http://localhost:8080/ingest/ --header 'content-type: application/json' -d '{"text": "green iphone 18gb"}'
+
+    curl -XPOST http://localhost:8080/ingest/ --header 'content-type: application/json' -d '{"text": "red iphone 18gb"}'
+    ```
+
+- Consolidate the results or wait a few seconds for the service to catch up itself
+
+    ```
+    curl -XPOST http://localhost:8080/consolidate
+    ```
+
+- Navigate to <http://localhost:8080> on your browser and type `green` or `red` etc.
