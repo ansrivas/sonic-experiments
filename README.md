@@ -28,3 +28,14 @@ cargo run --release
     ```
 
 - Navigate to <http://localhost:8080> on your browser and type `green` or `red` etc.
+
+### Adding db migrations
+
+- Install `sqlx-cli`
+  `cargo install sqlx-cli`
+
+- Generate the migrations. Note `-r`, this is to generate `up` and `down` of your migrations.
+
+  ```
+  sqlx migrate add -r <name-of-your-migration>
+  ```
