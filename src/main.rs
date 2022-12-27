@@ -19,6 +19,7 @@ use app_state::AppState;
 use askama_actix::TemplateToResponse;
 use errors::SonicErrors;
 use serde::{Deserialize, Serialize};
+use sonic_channel::*;
 use std::collections::HashMap;
 
 include!(concat!(env!("OUT_DIR"), "/generated.rs"));
@@ -43,7 +44,10 @@ async fn search(
     let mut indices = vec![];
     for word in name.split_ascii_whitespace() {
         let objects = search
-            .query_with_limit("collection", "bucket", word, 10)
+            .query(QueryRequest::new(
+                Dest::col_buc("collection", "bucket"),
+                word,
+            ))
             .map_err(|source| SonicErrors::Sonic { source })?;
         indices.extend_from_slice(&objects);
     }
@@ -87,9 +91,9 @@ async fn ingest(
         },
     )
     .await?;
-
+    let dest = Dest::col_buc("collection", "bucket").obj(&obj.to_string());
     let published = ingest
-        .push("collection", "bucket", &obj.to_string(), &text.text)
+        .push(PushRequest::new(dest, &text.text))
         .map_err(|source| SonicErrors::Sonic { source })?;
 
     let resp = serde_json::json!({
