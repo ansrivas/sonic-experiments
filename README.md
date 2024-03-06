@@ -1,13 +1,14 @@
+## Sonic-Experiments
 
-docker-compose up
+This is just a very basic experiment to see how the [Sonic](https://github.com/valeriansaliou/sonic) library performs on a real-world use-case.
 
-export DATABASE_URL="postgres://testuser:testpassword@localhost/testdb"
+## Run it locally
 
-<!-- cargo sqlx migrate run -->
+  `docker-compose up`
 
-<!-- cargo sqlx prepare -->
+  `export DATABASE_URL="postgres://testuser:testpassword@localhost/testdb"`
 
-cargo run --release
+  `cargo run --release`
 
 - In another terminal upload some data
 
@@ -29,7 +30,7 @@ cargo run --release
 
 - Navigate to <http://localhost:8080> on your browser and type `green` or `red` etc.
 
-### Adding db migrations
+### Adding a new db migrations
 
 - Install `sqlx-cli`
   `cargo install sqlx-cli`
