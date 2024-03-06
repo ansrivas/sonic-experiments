@@ -3,9 +3,9 @@ docker-compose up
 
 export DATABASE_URL="postgres://testuser:testpassword@localhost/testdb"
 
-cargo sqlx migrate run
+<!-- cargo sqlx migrate run -->
 
-cargo sqlx prepare
+<!-- cargo sqlx prepare -->
 
 cargo run --release
 

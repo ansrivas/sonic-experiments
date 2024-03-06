@@ -30,16 +30,14 @@ impl Postgres {
     pub async fn setup(dsn: &str, max_conn: u32, db_schema: &str) -> Result<PgPool, SonicErrors> {
         let db_schema = db_schema.to_string();
         let pgpool = PgPoolOptions::new()
-            .after_connect({
-                move |conn| {
-                    let create_schema = format!("CREATE SCHEMA IF NOT EXISTS {};", db_schema);
-                    let set_schema_query = format!("SET search_path = '{}';", db_schema);
-                    Box::pin(async move {
-                        conn.execute(create_schema.as_ref()).await?;
-                        conn.execute(set_schema_query.as_ref()).await?;
-                        Ok(())
-                    })
-                }
+            .after_connect(move |conn, _meta| {
+                let create_schema = format!("CREATE SCHEMA IF NOT EXISTS {};", db_schema);
+                let set_schema_query = format!("SET search_path = '{}';", db_schema);
+                Box::pin(async move {
+                    conn.execute(create_schema.as_ref()).await?;
+                    conn.execute(set_schema_query.as_ref()).await?;
+                    Ok(())
+                })
             })
             .max_connections(max_conn)
             .connect(dsn)
@@ -77,14 +75,13 @@ impl Postgres {
             .iter()
             .map(|u| uuid::Uuid::parse_str(u).unwrap())
             .collect();
-        let products = sqlx::query_as!(
-            Product,
+        let products = sqlx::query_as::<_, Product>(
             r#"SELECT 
                 *
             FROM product 
             WHERE object_id = ANY($1)"#,
-            &ids[..]
         )
+        .bind(&ids[..])
         .fetch_all(pool)
         .await?;
         Ok(products)

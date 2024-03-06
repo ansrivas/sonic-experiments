@@ -8,35 +8,36 @@ edition = "2021"
 [dependencies]
 actix-cors = "0.6"
 actix-web = "4"
-askama = "0.11.1"
-askama_actix = "0.13.0"
+askama = "0.12"
+askama_actix = "0.14"
 actix-web-static-files = "4.0"
-static-files = "0.2.1"
+static-files = "0.2"
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sonic-channel = { version = "0.6.0", features = [
+sonic-channel = { version = "1", features = [
     "ingest",
     "control",
     "search",
 ] }
-uuid = { version = "0.8", features = ["serde", "v4"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
 
 
 ## Database
-sqlx = { version = "0.5", features = [
+sqlx = { version = "0.7.3", features = [
     "json",
-    "offline",
+    # "offline",
     "postgres",
     "runtime-tokio-rustls",
     "chrono",
     "uuid",
     "macros",
 ] }
-thiserror = "1.0.30"
-tokio = { version = "1.17.0", features = ["full"] }
-rand = "0.8.5"
-itertools = "0.10.3"
+thiserror = "1"
+tokio = { version = "1", features = ["full"] }
+rand = "0.8"
+itertools = "0.11"
 
 [build-dependencies]
-static-files = "0.2.1"
+static-files = "0.2"
