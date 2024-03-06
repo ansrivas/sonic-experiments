@@ -2,7 +2,7 @@ version: '3'
 
 services:
   db:
-    image: postgres:13-alpine
+    image: postgres:16-alpine
     container_name: postgres-sonic-c
     ports:
       - 5432:5432
@@ -12,7 +12,7 @@ services:
       POSTGRES_DB: testdb
 
   sonic:
-    image: valeriansaliou/sonic:v1.4.0
+    image: valeriansaliou/sonic:v1.4.8
     container_name: sonic-c
     ports:
       - "21491:1491"
