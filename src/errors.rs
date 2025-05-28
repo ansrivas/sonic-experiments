@@ -40,6 +40,9 @@ pub enum SonicErrors {
         #[from]
         source: sonic_channel::result::Error,
     },
+
+    #[error("Template Render Error {0}")]
+    Render(#[from] askama::Error),
 }
 
 /// Optionally convert all these errors above to actix-web errors

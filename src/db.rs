@@ -1,8 +1,8 @@
 use crate::errors::SonicErrors;
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::PgPoolOptions;
 use sqlx::Executor;
 use sqlx::FromRow;
+use sqlx::postgres::PgPoolOptions;
 use sqlx::{self, Connection, PgPool};
 
 /// Run database migrations, this can also be switched to a separate app

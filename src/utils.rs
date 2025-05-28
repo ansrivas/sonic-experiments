@@ -1,8 +1,8 @@
 /// Generate a random length string
 pub fn random_chars(length: usize, prefix: &str) -> String {
-    use rand::{distributions::Alphanumeric, Rng};
+    use rand::{Rng, distr::Alphanumeric};
 
-    let suffix: String = rand::thread_rng()
+    let suffix: String = rand::rng()
         .sample_iter(&Alphanumeric)
         .take(length)
         .map(char::from)

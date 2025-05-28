@@ -6,14 +6,16 @@ mod errors;
 mod template;
 mod utils;
 
+use askama::Template;
 use itertools::Itertools;
 
 use crate::channel::Channel;
-use crate::db::{run_migrations, Postgres, Product};
+use crate::db::{Postgres, Product, run_migrations};
 use actix_cors::Cors;
 use actix_web::middleware::{Compress, NormalizePath};
-use actix_web::{get, post, web, App, HttpServer};
-use actix_web::{http::StatusCode, Error as ActixErr, HttpResponse};
+use actix_web::web::Html;
+use actix_web::{App, HttpServer, get, post, web};
+use actix_web::{Error as ActixErr, HttpResponse, http::StatusCode};
 use actix_web_static_files::ResourceFiles;
 use app_state::AppState;
 use askama_actix::TemplateToResponse;
@@ -33,6 +35,35 @@ struct Response {
 struct Request {
     text: String,
 }
+
+// impl Responder for AppError {
+//     type Body = String;
+
+//     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
+//         // The error handler uses an askama template to display its content.
+//         // The member `lang` is used by "_layout.html" which "error.html" extends. Even though it
+//         // is always the fallback language English in here, "_layout.html" expects to be able to
+//         // access this field, so you have to provide it.
+//         #[derive(Debug, Template)]
+//         #[template(path = "error.html")]
+//         struct Tmpl<'a> {
+//             req: &'a HttpRequest,
+//             lang: Lang,
+//             err: &'a AppError,
+//         }
+
+//         let tmpl = Tmpl {
+//             req,
+//             lang: Lang::default(),
+//             err: &self,
+//         };
+//         if let Ok(body) = tmpl.render() {
+//             (Html::new(body), self.status_code()).respond_to(req)
+//         } else {
+//             ("Something went wrong".to_string(), self.status_code()).respond_to(req)
+//         }
+//     }
+// }
 
 #[get("/search/{name}")]
 async fn search(
@@ -113,9 +144,12 @@ async fn consolidate(state: web::Data<AppState>) -> Result<HttpResponse, ActixEr
 }
 
 #[get("/")]
-async fn index() -> Result<HttpResponse, ActixErr> {
-    let resp = template::Search {}.to_response();
-    Ok(resp)
+async fn index() -> Result<impl actix_web::Responder, ActixErr> {
+    Ok(Html::new(
+        template::Search {}
+            .render()
+            .map_err(|e| SonicErrors::Render(e))?,
+    ))
 }
 
 #[actix_web::main]
